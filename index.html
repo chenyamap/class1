@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>课堂签到</title>
+<style>
+:root{
+  --bg:#f5f7fb;--panel:#fff;--text:#162033;--muted:#8b93a6;--line:#e7ebf3;
+  --primary:#5867f5;--primary-soft:#eef0ff;--danger:#ef5966;--success:#20a76b;
+  --shadow:0 14px 40px rgba(30,40,75,.07);--radius:22px
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+button,input,select,textarea{font:inherit}
+.app{min-height:100vh;display:grid;grid-template-columns:220px 1fr}
+aside{background:#12182a;padding:26px 16px;color:#fff}
+.brand{font-size:20px;font-weight:800;padding:4px 12px 26px}
+.nav{display:flex;flex-direction:column;gap:7px}
+.nav button{border:0;background:transparent;color:#aeb7cb;padding:13px 14px;border-radius:13px;text-align:left;cursor:pointer}
+.nav button.active,.nav button:hover{background:#202943;color:#fff}
+main{padding:30px}.page{display:none}.page.active{display:block}
+.page-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+h1{margin:0;font-size:28px}.card{background:#fff;border-radius:22px;box-shadow:var(--shadow);padding:22px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.stat-label{color:var(--muted);font-size:14px}.stat-num{font-size:34px;font-weight:800;margin-top:8px}
+.btn{border:0;border-radius:13px;padding:11px 18px;font-weight:750;cursor:pointer}
+.btn.primary{background:var(--primary);color:#fff}.btn.danger{background:#ffedf0;color:var(--danger)}.btn.ghost{background:#f1f3f7;color:#525b6f}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap}
+.course-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.course-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px}
+.course-card h3{margin:0 0 8px;font-size:18px}.course-meta{color:var(--muted);font-size:14px}
+.field label{display:block;color:#6d7689;font-size:13px;margin-bottom:7px}
+.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:13px;background:#fff;padding:12px 13px;outline:none}
+.field textarea{min-height:300px;resize:vertical;line-height:1.7}
+.name-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:16px}
+.name-chip{background:#f7f8fc;border:1px solid var(--line);border-radius:11px;padding:10px;text-align:center;font-size:14px}
+.checkin-grid{display:grid;grid-template-columns:430px 1fr;gap:18px}
+.checkin-card{text-align:center}
+.control-row{display:grid;grid-template-columns:1fr 130px;gap:10px;text-align:left}
+.qr-wrap{width:320px;height:320px;margin:22px auto 12px;border-radius:26px;background:#fafbfe;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:18px}
+#qrImage{width:284px;height:284px;object-fit:contain;display:none}
+#qrPlaceholder{color:#a0a8b8;font-size:14px}
+.countdown{font-weight:800;font-size:22px;color:var(--primary);margin-top:6px}
+.table{width:100%;border-collapse:collapse}.table th,.table td{padding:13px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}.table th{color:#7a8395}
+.empty{color:#a0a8b8;padding:28px 0;text-align:center}
+.student-shell{max-width:520px;margin:0 auto;padding:30px 18px}
+.student-title{text-align:center;margin:12px 0 18px}
+.mobile-card{background:#fff;border-radius:24px;box-shadow:var(--shadow);padding:22px}
+.student-status{background:#f2f4ff;color:#4b58cf;border-radius:13px;padding:12px 14px;text-align:center;margin-bottom:16px}
+.success{background:#e9f8f1;color:#148652}
+@media(max-width:950px){
+  .app{grid-template-columns:1fr}aside{display:none}main{padding:16px}
+  .stats,.course-grid,.checkin-grid{grid-template-columns:1fr}.control-row{grid-template-columns:1fr}
+  .name-grid{grid-template-columns:repeat(2,1fr)}.qr-wrap{width:100%;max-width:320px}
+}
+</style>
+</head>
+<body>
+
+<div id="teacherApp" class="app">
+<aside>
+  <div class="brand">课堂签到</div>
+  <div class="nav">
+    <button class="active" data-page="home">首页</button>
+    <button data-page="courses">课程</button>
+    <button data-page="students">学生名单</button>
+    <button data-page="checkin">开始签到</button>
+    <button data-page="records">签到记录</button>
+  </div>
+</aside>
+
+<main>
+<section id="home" class="page active">
+  <div class="page-head"><h1>首页</h1></div>
+  <div class="stats">
+    <div class="card"><div class="stat-label">课程</div><div id="courseCount" class="stat-num">0</div></div>
+    <div class="card"><div class="stat-label">学生</div><div id="studentCount" class="stat-num">0</div></div>
+    <div class="card"><div class="stat-label">签到记录</div><div id="recordCount" class="stat-num">0</div></div>
+  </div>
+</section>
+
+<section id="courses" class="page">
+  <div class="page-head"><h1>课程</h1><button class="btn primary" onclick="addCourse()">+ 新建课程</button></div>
+  <div id="courseGrid" class="course-grid"></div>
+</section>
+
+<section id="students" class="page">
+  <div class="page-head"><h1>学生名单</h1></div>
+  <div class="card">
+    <div class="field"><label>课程</label><select id="studentCourse" onchange="loadNames()"></select></div>
+    <div class="field" style="margin-top:14px"><label>学生姓名</label>
+      <textarea id="names" placeholder="张三
+李四
+王五
+赵六"></textarea>
+    </div>
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn primary" onclick="saveNames()">保存名单</button>
+      <button class="btn ghost" onclick="clearNames()">清空</button>
+    </div>
+    <div id="nameGrid" class="name-grid"></div>
+  </div>
+</section>
+
+<section id="checkin" class="page">
+  <div class="page-head"><h1>开始签到</h1></div>
+  <div class="checkin-grid">
+    <div class="card checkin-card">
+      <div class="control-row">
+        <div class="field"><label>课程</label><select id="checkinCourse"></select></div>
+        <div class="field"><label>刷新</label>
+          <select id="refreshSec"><option value="30">30 秒</option><option value="45">45 秒</option><option value="60" selected>60 秒</option></select>
+        </div>
+      </div>
+      <div class="toolbar" style="justify-content:center;margin-top:16px">
+        <button class="btn primary" onclick="startCheckin()">开始签到</button>
+        <button class="btn danger" onclick="stopCheckin()">结束签到</button>
+      </div>
+      <div class="qr-wrap">
+        <div id="qrPlaceholder">点击“开始签到”</div>
+        <img id="qrImage" alt="签到二维码">
+      </div>
+      <div id="countdown" class="countdown">未开始</div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 12px;font-size:19px">实时签到</h2>
+      <table class="table">
+        <thead><tr><th>姓名</th><th>时间</th></tr></thead>
+        <tbody id="liveBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="records" class="page">
+  <div class="page-head"><h1>签到记录</h1></div>
+  <div class="card">
+    <table class="table">
+      <thead><tr><th>课程</th><th>姓名</th><th>时间</th></tr></thead>
+      <tbody id="recordBody"></tbody>
+    </table>
+  </div>
+</section>
+</main>
+</div>
+
+<div id="studentApp" style="display:none">
+  <div class="student-shell">
+    <h1 class="student-title">课堂签到</h1>
+    <div class="mobile-card">
+      <div id="studentNotice" class="student-status">正在验证二维码</div>
+      <div class="field"><label>姓名</label><select id="studentName"></select></div>
+      <button id="submitBtn" class="btn primary" style="width:100%;margin-top:16px" onclick="studentSubmit()">确认签到</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const K={courses:'att6_courses',students:'att6_students',records:'att6_records'};
+let courses=JSON.parse(localStorage.getItem(K.courses)||'null')||[
+{id:'c1',name:'交互设计'},{id:'c2',name:'创新设计前沿'},{id:'c3',name:'视听语言'}
+];
+let students=JSON.parse(localStorage.getItem(K.students)||'[]');
+let records=JSON.parse(localStorage.getItem(K.records)||'[]');
+let activeSession=null,timer=null;
+
+function save(){localStorage.setItem(K.courses,JSON.stringify(courses));localStorage.setItem(K.students,JSON.stringify(students));localStorage.setItem(K.records,JSON.stringify(records))}
+function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function rand(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
+function encodeNames(arr){return btoa(unescape(encodeURIComponent(JSON.stringify(arr))))}
+function decodeNames(s){try{return JSON.parse(decodeURIComponent(escape(atob(s))))}catch(e){return []}}
+
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(b.dataset.page).classList.add('active');
+  render();
+});
+
+function addCourse(){
+  const n=prompt('课程名称');
+  if(!n?.trim())return;
+  courses.push({id:'c'+Date.now(),name:n.trim()});
+  save();render();
+}
+function removeCourse(id){
+  if(!confirm('删除这个课程？'))return;
+  courses=courses.filter(x=>x.id!==id);
+  students=students.filter(x=>x.courseId!==id);
+  save();render();
+}
+function renderCourses(){
+  courseGrid.innerHTML=courses.length?courses.map(c=>`
+  <div class="course-card">
+    <h3>${esc(c.name)}</h3>
+    <div class="course-meta">${students.filter(s=>s.courseId===c.id).length} 名学生</div>
+    <button class="btn danger" style="margin-top:14px" onclick="removeCourse('${c.id}')">删除</button>
+  </div>`).join(''):'<div class="empty">暂无课程</div>';
+}
+function fillSelects(){
+  [studentCourse,checkinCourse].forEach(el=>{
+    const old=el.value;
+    el.innerHTML=courses.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    if([...el.options].some(o=>o.value===old))el.value=old;
+  });
+}
+function parseNames(t){return [...new Set(t.split(/[\r\n,，、;；\t ]+/).map(x=>x.trim()).filter(Boolean))]}
+function loadNames(){
+  if(!studentCourse.value)return;
+  const arr=students.filter(s=>s.courseId===studentCourse.value).map(s=>s.name);
+  names.value=arr.join('\n');
+  nameGrid.innerHTML=arr.map(n=>`<div class="name-chip">${esc(n)}</div>`).join('');
+}
+function saveNames(){
+  const cid=studentCourse.value,arr=parseNames(names.value);
+  students=students.filter(s=>s.courseId!==cid);
+  arr.forEach((n,i)=>students.push({id:'s'+Date.now()+i,courseId:cid,name:n}));
+  save();render();loadNames();
+}
+function clearNames(){
+  if(!confirm('清空当前名单？'))return;
+  students=students.filter(s=>s.courseId!==studentCourse.value);
+  save();render();loadNames();
+}
+
+// 核心修复：二维码永远指向“当前签到网页本身”，不再手填旧网址。
+function makeStudentUrl(){
+  const u=new URL(window.location.href);
+  u.search='';
+  u.hash='';
+  u.searchParams.set('student','1');
+  u.searchParams.set('course',activeSession.courseName);
+  u.searchParams.set('sid',activeSession.sid);
+  u.searchParams.set('token',activeSession.token);
+  u.searchParams.set('expires',String(activeSession.expires));
+  u.searchParams.set('names',encodeNames(activeSession.names));
+  return u.toString();
+}
+function refreshQR(){
+  activeSession.token=rand();
+  activeSession.expires=Date.now()+activeSession.refresh*1000;
+  const url=makeStudentUrl();
+
+  if(location.protocol==='file:'){
+    qrImage.style.display='none';
+    qrPlaceholder.style.display='block';
+    qrPlaceholder.textContent='请先上传到 GitHub Pages';
+    countdown.textContent='本地文件无法供手机扫码访问';
+    return;
+  }
+
+  qrPlaceholder.style.display='none';
+  qrImage.style.display='block';
+  qrImage.src='https://quickchart.io/qr?size=500&margin=2&text='+encodeURIComponent(url)+'&_='+Date.now();
+  qrImage.onerror=()=>{
+    qrImage.style.display='none';
+    qrPlaceholder.style.display='block';
+    qrPlaceholder.textContent='二维码加载失败';
+  };
+}
+function startCheckin(){
+  const cid=checkinCourse.value;
+  const c=courses.find(x=>x.id===cid);
+  const arr=students.filter(s=>s.courseId===cid).map(s=>s.name);
+  if(!arr.length)return alert('请先添加学生名单');
+  activeSession={sid:'sess'+Date.now(),courseId:cid,courseName:c.name,names:arr,refresh:+refreshSec.value,token:'',expires:0};
+  refreshQR();
+  clearInterval(timer);
+  timer=setInterval(tick,1000);
+  tick();
+}
+function tick(){
+  if(!activeSession)return;
+  if(location.protocol==='file:')return;
+  const left=Math.max(0,Math.ceil((activeSession.expires-Date.now())/1000));
+  countdown.textContent=left+' 秒后刷新';
+  if(left<=0)refreshQR();
+}
+function stopCheckin(){
+  activeSession=null;
+  clearInterval(timer);
+  qrImage.style.display='none';
+  qrImage.removeAttribute('src');
+  qrPlaceholder.style.display='block';
+  qrPlaceholder.textContent='签到已结束';
+  countdown.textContent='已结束';
+}
+function renderRecords(){
+  recordBody.innerHTML=records.length?[...records].reverse().map(r=>`
+  <tr><td>${esc(r.course)}</td><td>${esc(r.name)}</td><td>${new Date(r.time).toLocaleString()}</td></tr>`).join(''):'<tr><td colspan="3" class="empty">暂无记录</td></tr>';
+  liveBody.innerHTML=activeSession?[...records].reverse().filter(r=>r.sid===activeSession.sid).map(r=>`
+  <tr><td>${esc(r.name)}</td><td>${new Date(r.time).toLocaleTimeString()}</td></tr>`).join(''):'<tr><td colspan="2" class="empty">暂无签到</td></tr>';
+}
+function render(){
+  fillSelects();renderCourses();loadNames();renderRecords();
+  courseCount.textContent=courses.length;
+  studentCount.textContent=students.length;
+  recordCount.textContent=records.length;
+}
+
+function initStudent(){
+  const q=new URLSearchParams(location.search);
+  if(q.get('student')!=='1')return false;
+  teacherApp.style.display='none';
+  studentApp.style.display='block';
+
+  const expires=Number(q.get('expires')||0);
+  const sid=q.get('sid');
+  const course=q.get('course')||'课堂签到';
+  const list=decodeNames(q.get('names')||'');
+  window.studentSession={expires,sid,course};
+
+  studentName.innerHTML='<option value="">请选择姓名</option>'+list.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  if(Date.now()>expires){
+    studentNotice.textContent='二维码已过期';
+    submitBtn.disabled=true;
+    submitBtn.style.opacity='.5';
+  }else{
+    studentNotice.textContent='请选择姓名';
+  }
+  return true;
+}
+function studentSubmit(){
+  const s=window.studentSession;
+  if(!s||Date.now()>s.expires)return alert('二维码已过期，请重新扫码');
+  const name=studentName.value;
+  if(!name)return alert('请选择姓名');
+  const local=JSON.parse(localStorage.getItem(K.records)||'[]');
+  if(local.some(r=>r.sid===s.sid&&r.name===name))return alert('已签到');
+  local.push({sid:s.sid,course:s.course,name,time:Date.now()});
+  localStorage.setItem(K.records,JSON.stringify(local));
+  studentNotice.textContent='签到成功';
+  studentNotice.classList.add('success');
+  submitBtn.disabled=true;
+  submitBtn.style.opacity='.5';
+}
+
+if(!initStudent())render();
+</script>
+</body>
+</html>
